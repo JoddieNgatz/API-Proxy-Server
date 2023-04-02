@@ -1,22 +1,22 @@
-const express = require('express');
 const morgan = require("morgan");
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const {port,baseURL,apiKey, host}= require("./src/utils/env");
-// Create Express Server
-const app = express();
+const {port,baseURL,apiKey, host}= require("../utils/env");
+const router = require("express").Router();
+const { default: axios } = require("axios");
+const env = require("../utils/env");
 
 // Configuration
 const PORT = port;
 const HOST = host;
 const API_SERVICE_URL = baseURL;
 // Logging
-app.use(morgan('dev'));
+router.use(morgan('dev'));
 // Info GET endpoint
-app.get('/info', (req, res, next) => {
+router.get('/info', (req, res, next) => {
     res.send('This is a proxy service which proxies to Billing and Account APIs.');
  });
  // Authorization
-app.use('', (req, res, next) => {
+ router.use('', (req, res, next) => {
     if (req.headers.authorization) {
         next();
     } else {
@@ -24,10 +24,37 @@ app.use('', (req, res, next) => {
     }
  });
  // Proxy endpoints
-app.use('/json_placeholder', createProxyMiddleware({
+ router.use('/json_placeholder', createProxyMiddleware({
     target: API_SERVICE_URL,
     changeOrigin: true,
     pathRewrite: {
         [`^/json_placeholder`]: '',
     },
  }));
+
+ 
+// [GET] Current weather data
+router.get("/weather", async (request, response, next) => {
+    try {
+      const query = request.query || {}; 
+      const params = {
+        appid: env.apiKey, // required field
+        ...query,
+      };
+      const { data } = await axios.get(env.baseURL, { params });
+  
+      return response.status(200).json({
+        message: "Current weather data fetched!",
+        details: { ...data },
+      });
+    } catch (error) {
+      const {
+        response: { data },
+      } = error;
+      const statusCode = Number(data.cod) || 400;
+      return response
+        .status(statusCode)
+        .json({ message: "Bad Request", details: { ...data } });
+    }
+  });
+  module.exports = router;
